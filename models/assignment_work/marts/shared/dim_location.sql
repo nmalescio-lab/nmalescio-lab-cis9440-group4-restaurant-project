@@ -6,6 +6,12 @@ WITH all_locations AS (
    CAST(community_board AS STRING) AS community_board,
    CAST(council_district AS STRING) AS council_district,
    CAST(census_tract AS STRING) AS census_tract,
+   CAST(incident_address AS STRING) AS address,
+   CAST(street_name AS STRING) AS street_name,
+   CAST(bbl AS STRING) AS bbl,
+   CAST(longitude AS INT) AS longitude,
+   CAST(latitude AS INT) AS latitude
+   
 
    FROM {{ ref('stg_nyc_311_restaurant') }}
    WHERE borough IS NOT NULL
@@ -13,11 +19,16 @@ WITH all_locations AS (
    UNION DISTINCT
 
    -- Get dates from restaurant applications
-   SELECT DISTINCT CAST(borough AS STRING) AS borough,
+   SELECT DISTINCT CAST(boro AS STRING) AS borough,
    CAST(zipcode AS INT) AS zipcode,
    CAST(community_board AS STRING) AS community_board,
    CAST(council_district AS STRING) AS council_district,
    CAST(census_tract AS STRING) AS census_tract,
+   CAST(building AS STRING) AS building_number,
+   CAST(street AS STRING) AS street_name,
+   CAST(bbl AS STRING) AS bbl,
+   CAST(longitude AS INT) AS longitude,
+   CAST(latitude AS INT) AS latitude
    FROM {{ ref('stg_nyc_restaurant_inspection') }}
    WHERE borough IS NOT NULL
 ),
