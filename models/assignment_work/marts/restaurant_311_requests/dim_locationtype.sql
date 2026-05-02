@@ -5,7 +5,7 @@ WITH location_types AS (
 
    FROM {{ ref('stg_nyc_311_restaurant') }}
    WHERE location_type IS NOT NULL
-),
+    ),
 
 locationtype_dimension AS (
 
