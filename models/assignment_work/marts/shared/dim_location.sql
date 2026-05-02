@@ -10,7 +10,7 @@ WITH all_locations AS (
 
    FROM {{ ref('stg_nyc_311_restaurant') }}
    WHERE borough IS NOT NULL
-   AND CAST(borough AS STRING) != 0
+   AND CAST(borough AS STRING) != '0'
 
    UNION DISTINCT
 
