@@ -1,0 +1,22 @@
+WITH location_types AS (
+
+   SELECT DISTINCT
+       CAST(location_type AS STRING) AS location_type
+
+   FROM {{ ref('stg_nyc_311_restaurant') }}
+   WHERE location_type IS NOT NULL
+),
+
+locationtype_dimension AS (
+
+   SELECT
+       {{ dbt_utils.generate_surrogate_key([
+           'location_type'
+       ]) }} AS locationtype_key,
+
+       location_type
+
+   FROM location_types
+)
+
+SELECT * FROM locationtype_dimension
