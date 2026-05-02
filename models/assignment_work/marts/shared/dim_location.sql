@@ -24,6 +24,7 @@ WITH all_locations AS (
 
    FROM {{ ref('stg_nyc_restaurant_inspection') }}
    WHERE boro IS NOT NULL
+   AND CAST(boro AS STRING) != '0'
 ),
 
 location_dimension AS (
@@ -44,6 +45,7 @@ location_dimension AS (
 
    FROM all_locations
    WHERE borough IS NOT NULL
+   AND borough != '0'
 )
 
 SELECT * FROM location_dimension
