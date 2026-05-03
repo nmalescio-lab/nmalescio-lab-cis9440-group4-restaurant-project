@@ -8,7 +8,7 @@ WITH all_restaurants AS (
         street,
         zipcode,
         boro
-    FROM {{ ref('stg_nyc_restaurant_inspections') }}
+    FROM {{ ref('stg_nyc_restaurant_inspection') }}
     WHERE camis IS NOT NULL
 ),
 restaurant_dimension AS (

@@ -2,7 +2,7 @@ WITH all_inspections AS (
     SELECT DISTINCT
         inspection_date,
         inspection_type
-    FROM {{ ref('stg_nyc_restaurant_inspections') }}
+    FROM {{ ref('stg_nyc_restaurant_inspection') }}
     WHERE inspection_date IS NOT NULL
 ),
 inspection_dimension AS (
