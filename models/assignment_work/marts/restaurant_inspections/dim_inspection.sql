@@ -1,6 +1,6 @@
 WITH all_inspections AS (
     SELECT DISTINCT
-        CAST(inspection_date AS DATE) AS inspection_date,
+        CAST(inspection_date AS TIMESTAMP) AS inspection_date,
         inspection_type
     FROM {{ ref('stg_nyc_restaurant_inspection') }}
     WHERE inspection_date IS NOT NULL
