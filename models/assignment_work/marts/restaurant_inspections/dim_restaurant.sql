@@ -6,8 +6,12 @@ WITH all_restaurants AS (
         phone,
         building AS building_number,
         street AS street_name,
+        CONCAT(building, ' ', street, ', ', boro, ', NY ', zipcode) AS full_address,
         zipcode AS zip_code,
-        boro AS borough
+        boro AS borough,
+        bbl,
+        longitude,
+        latitude
     FROM {{ ref('stg_nyc_restaurant_inspection') }}
     WHERE camis IS NOT NULL
 )
@@ -19,6 +23,10 @@ SELECT
     phone,
     building_number,
     street_name,
+    full_address,
     zip_code,
-    borough
+    borough,
+    bbl,
+    longitude,
+    latitude
 FROM all_restaurants
