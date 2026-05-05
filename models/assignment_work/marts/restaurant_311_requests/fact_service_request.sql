@@ -20,8 +20,15 @@ dim_grade_date AS (
 dim_restaurant AS (
     SELECT
         restaurant_key,
-        camis
+        restaurant_name,
+        phone
     FROM {{ ref('dim_restaurant') }}
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY
+            restaurant_name,
+            phone
+        ORDER BY restaurant_key
+    ) = 1
 ),
 
 dim_location AS (
@@ -30,14 +37,28 @@ dim_location AS (
         borough,
         zipcode
     FROM {{ ref('dim_location') }}
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY
+            borough,
+            zipcode
+        ORDER BY location_key
+    ) = 1
 ),
 
 dim_violation AS (
     SELECT
         violation_key,
         violation_code,
-        violation_desc
+        violation_desc,
+        is_critical
     FROM {{ ref('dim_violation') }}
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY
+            violation_code,
+            violation_desc,
+            is_critical
+        ORDER BY violation_key
+    ) = 1
 ),
 
 dim_results AS (
@@ -46,6 +67,12 @@ dim_results AS (
         score,
         grade
     FROM {{ ref('dim_results') }}
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY
+            score,
+            grade
+        ORDER BY results_key
+    ) = 1
 ),
 
 dim_inspection AS (
@@ -53,22 +80,25 @@ dim_inspection AS (
         inspection_key,
         inspection_type
     FROM {{ ref('dim_inspection') }}
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY inspection_type
+        ORDER BY inspection_key
+    ) = 1
 ),
 
 final AS (
     SELECT
-        -- Primary key for this fact table
         {{ dbt_utils.generate_surrogate_key([
             'i.camis',
             'i.inspection_date',
             'i.inspection_type',
-            'i.violation_code'
+            'i.violation_code',
+            'i.score',
+            'i.grade'
         ]) }} AS fact_inspection_key,
 
-        -- Natural/source key
         i.camis AS restaurant_case_id,
 
-        -- Foreign keys
         id.date_key AS inspection_date_key,
         gd.date_key AS grade_date_key,
         r.restaurant_key,
@@ -77,7 +107,6 @@ final AS (
         res.results_key,
         insp.inspection_key,
 
-        -- Degenerate/detail fields from the inspection source
         i.dba AS restaurant_name,
         i.phone,
         i.cuisine_description,
@@ -96,7 +125,8 @@ final AS (
         ON DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S', i.grade_date)) = gd.full_date
 
     LEFT JOIN dim_restaurant r
-        ON CAST(i.camis AS STRING) = CAST(r.camis AS STRING)
+        ON COALESCE(i.dba, '') = COALESCE(r.restaurant_name, '')
+       AND COALESCE(CAST(i.phone AS STRING), '') = COALESCE(CAST(r.phone AS STRING), '')
 
     LEFT JOIN dim_location l
         ON COALESCE(i.boro, '') = COALESCE(l.borough, '')
@@ -105,6 +135,7 @@ final AS (
     LEFT JOIN dim_violation v
         ON COALESCE(i.violation_code, '') = COALESCE(v.violation_code, '')
        AND COALESCE(i.violation_description, '') = COALESCE(v.violation_desc, '')
+       AND COALESCE(CAST(i.critical_flag AS STRING), '') = COALESCE(CAST(v.is_critical AS STRING), '')
 
     LEFT JOIN dim_results res
         ON COALESCE(CAST(i.score AS STRING), '') = COALESCE(CAST(res.score AS STRING), '')
