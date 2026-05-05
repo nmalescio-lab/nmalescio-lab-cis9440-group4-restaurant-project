@@ -1,34 +1,50 @@
-WITH inspections AS (
+WITH requests AS (
     SELECT *
-    FROM {{ ref('stg_nyc_restaurant_inspection') }}
+    FROM {{ ref('stg_nyc_311_restaurant') }}
 ),
 
-dim_inspection_date AS (
+dim_open_date AS (
     SELECT
         date_key,
         full_date
     FROM {{ ref('dim_date') }}
 ),
 
-dim_grade_date AS (
+dim_closed_date AS (
     SELECT
         date_key,
         full_date
     FROM {{ ref('dim_date') }}
 ),
 
-dim_restaurant AS (
+dim_agency AS (
     SELECT
-        restaurant_key,
-        restaurant_name,
-        phone
-    FROM {{ ref('dim_restaurant') }}
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY
-            restaurant_name,
-            phone
-        ORDER BY restaurant_key
-    ) = 1
+        agency_key,
+        agency_name
+    FROM {{ ref('dim_agency') }}
+),
+
+dim_problem AS (
+    SELECT
+        problem_key,
+        problem,
+        problem_detail,
+        additional_details
+    FROM {{ ref('dim_problem') }}
+),
+
+dim_status AS (
+    SELECT
+        status_key,
+        status
+    FROM {{ ref('dim_status') }}
+),
+
+dim_locationtype AS (
+    SELECT
+        locationtype_key,
+        location_type
+    FROM {{ ref('dim_locationtype') }}
 ),
 
 dim_location AS (
@@ -45,104 +61,55 @@ dim_location AS (
     ) = 1
 ),
 
-dim_violation AS (
-    SELECT
-        violation_key,
-        violation_code,
-        violation_desc,
-        is_critical
-    FROM {{ ref('dim_violation') }}
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY
-            violation_code,
-            violation_desc,
-            is_critical
-        ORDER BY violation_key
-    ) = 1
-),
-
-dim_results AS (
-    SELECT
-        results_key,
-        score,
-        grade
-    FROM {{ ref('dim_results') }}
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY
-            score,
-            grade
-        ORDER BY results_key
-    ) = 1
-),
-
-dim_inspection AS (
-    SELECT
-        inspection_key,
-        inspection_type
-    FROM {{ ref('dim_inspection') }}
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY inspection_type
-        ORDER BY inspection_key
-    ) = 1
-),
-
 final AS (
     SELECT
-        {{ dbt_utils.generate_surrogate_key([
-            'i.camis',
-            'i.inspection_date',
-            'i.inspection_type',
-            'i.violation_code',
-            'i.score',
-            'i.grade'
-        ]) }} AS fact_inspection_key,
+        -- Primary key for this fact table
+        {{ dbt_utils.generate_surrogate_key(['r.request_id']) }} AS service_request_key,
 
-        i.camis AS restaurant_case_id,
+        -- Natural/source key
+        r.request_id AS request_case_id,
 
-        id.date_key AS inspection_date_key,
-        gd.date_key AS grade_date_key,
-        r.restaurant_key,
+        -- Foreign keys
+        od.date_key AS open_date_key,
+        cd.date_key AS closed_date_key,
+        a.agency_key,
         l.location_key,
-        v.violation_key,
-        res.results_key,
-        insp.inspection_key,
+        p.problem_key,
+        s.status_key,
+        lt.locationtype_key,
 
-        i.dba AS restaurant_name,
-        i.phone,
-        i.cuisine_description,
-        i.building,
-        i.street,
-        i.bbl,
-        i.longitude,
-        i.latitude
+        -- Additional information from staging
+        r.incident_address,
+        r.street_name,
+        r.bbl,
+        r.longitude,
+        r.latitude
 
-    FROM inspections i
+    FROM requests r
 
-    LEFT JOIN dim_inspection_date id
-        ON DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S', i.inspection_date)) = id.full_date
+    LEFT JOIN dim_open_date od
+        ON CAST(r.created_date AS DATE) = od.full_date
 
-    LEFT JOIN dim_grade_date gd
-        ON DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S', i.grade_date)) = gd.full_date
+    LEFT JOIN dim_closed_date cd
+        ON CAST(r.closed_date AS DATE) = cd.full_date
 
-    LEFT JOIN dim_restaurant r
-        ON COALESCE(i.dba, '') = COALESCE(r.restaurant_name, '')
-       AND COALESCE(CAST(i.phone AS STRING), '') = COALESCE(CAST(r.phone AS STRING), '')
+    LEFT JOIN dim_agency a
+        ON COALESCE(r.agency_name, '') = COALESCE(a.agency_name, '')
 
     LEFT JOIN dim_location l
-        ON COALESCE(i.boro, '') = COALESCE(l.borough, '')
-       AND COALESCE(CAST(i.zipcode AS STRING), '') = COALESCE(CAST(l.zipcode AS STRING), '')
+        ON COALESCE(r.borough, '') = COALESCE(l.borough, '')
+       AND COALESCE(CAST(r.incident_zip AS STRING), '') = COALESCE(CAST(l.zipcode AS STRING), '')
 
-    LEFT JOIN dim_violation v
-        ON COALESCE(i.violation_code, '') = COALESCE(v.violation_code, '')
-       AND COALESCE(i.violation_description, '') = COALESCE(v.violation_desc, '')
-       AND COALESCE(CAST(i.critical_flag AS STRING), '') = COALESCE(CAST(v.is_critical AS STRING), '')
+    LEFT JOIN dim_problem p
+        ON COALESCE(r.complaint_type, '') = COALESCE(p.problem, '')
+       AND COALESCE(r.descriptor, '') = COALESCE(p.problem_detail, '')
+       AND COALESCE(r.resolution_description, '') = COALESCE(p.additional_details, '')
 
-    LEFT JOIN dim_results res
-        ON COALESCE(CAST(i.score AS STRING), '') = COALESCE(CAST(res.score AS STRING), '')
-       AND COALESCE(i.grade, '') = COALESCE(res.grade, '')
+    LEFT JOIN dim_status s
+        ON COALESCE(r.status, '') = COALESCE(s.status, '')
 
-    LEFT JOIN dim_inspection insp
-        ON COALESCE(i.inspection_type, '') = COALESCE(insp.inspection_type, '')
+    LEFT JOIN dim_locationtype lt
+        ON COALESCE(r.location_type, '') = COALESCE(lt.location_type, '')
 )
 
 SELECT *
